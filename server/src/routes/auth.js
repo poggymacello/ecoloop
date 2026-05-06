@@ -1,53 +1,52 @@
-// server/src/middlewares/auth.js
-//
-// requireAuth   → verifikasi JWT Supabase, load profil, attach ke req.user
-// requireRole   → membatasi route ke role tertentu (pakai SETELAH requireAuth)
-
+// server/src/routes/auth.js
+import { Router } from 'express';
 import { supabaseAdmin } from '../db/supabase.js';
+import { requireAuth } from '../middlewares/auth.js';
 
-export async function requireAuth(req, res, next) {
-  try {
-    const header = req.headers.authorization || '';
-    const token = header.startsWith('Bearer ') ? header.slice(7) : null;
-    if (!token) return res.status(401).json({ error: 'missing_token' });
+const router = Router();
 
-    // Verifikasi token ke Supabase Auth
-    const { data, error } = await supabaseAdmin.auth.getUser(token);
-    if (error || !data?.user) {
-      return res.status(401).json({ error: 'invalid_token' });
-    }
-
-    // Load profil (role tinggal di public.users)
-    const { data: profile, error: pErr } = await supabaseAdmin
-      .from('users')
-      .select('id, email, role, full_name')
-      .eq('id', data.user.id)
-      .single();
-
-    if (pErr || !profile) {
-      return res.status(401).json({ error: 'profile_not_found' });
-    }
-
-    req.user = {
-      id: profile.id,
-      email: profile.email,
-      role: profile.role,
-      full_name: profile.full_name,
-      jwt: token,
-    };
-    next();
-  } catch (err) {
-    console.error('[requireAuth] unexpected error:', err);
-    return res.status(500).json({ error: 'auth_error' });
+// POST /api/auth/register
+router.post('/register', async (req, res) => {
+  const { email, password, full_name, role = 'user' } = req.body || {};
+  if (!email || !password || !full_name) {
+    return res.status(400).json({ error: 'missing_fields' });
   }
-}
+  if (!['user', 'aggregator', 'recycler'].includes(role)) {
+    return res.status(400).json({ error: 'invalid_role' });
+  }
 
-export function requireRole(...roles) {
-  return (req, res, next) => {
-    if (!req.user) return res.status(401).json({ error: 'unauthenticated' });
-    if (!roles.includes(req.user.role)) {
-      return res.status(403).json({ error: 'forbidden', required: roles });
-    }
-    next();
-  };
-}
+  const { data, error } = await supabaseAdmin.auth.admin.createUser({
+    email,
+    password,
+    email_confirm: true,
+    user_metadata: { full_name, role },
+  });
+  if (error) return res.status(400).json({ error: error.message });
+
+  return res.status(201).json({
+    user: { id: data.user.id, email: data.user.email, role },
+  });
+});
+
+// POST /api/auth/login
+router.post('/login', async (req, res) => {
+  const { email, password } = req.body || {};
+  if (!email || !password) return res.status(400).json({ error: 'missing_fields' });
+
+  const { data, error } = await supabaseAdmin.auth.signInWithPassword({ email, password });
+  if (error) return res.status(401).json({ error: error.message });
+
+  return res.json({
+    access_token: data.session.access_token,
+    refresh_token: data.session.refresh_token,
+    expires_at: data.session.expires_at,
+    user: { id: data.user.id, email: data.user.email },
+  });
+});
+
+// GET /api/auth/me
+router.get('/me', requireAuth, (req, res) => {
+  return res.json({ user: req.user });
+});
+
+export default router;
