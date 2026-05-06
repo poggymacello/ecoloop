@@ -1,28 +1,16 @@
-// server/src/db/supabase.js
-//
-// Dua jenis client Supabase:
-//   1. supabaseAdmin    → pakai service_role key, BYPASS RLS, hanya untuk backend.
-//   2. supabaseFromToken → per-request, pakai anon key + JWT user, RLS aktif.
-//
-// Aturan: jangan pernah ekspos service_role key ke frontend.
-
+import 'dotenv/config';
 import { createClient } from '@supabase/supabase-js';
+import ws from 'ws';
 
-const { SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY } = process.env;
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY || !SUPABASE_ANON_KEY) {
-  throw new Error(
-    'Missing Supabase env vars. Required: SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY'
-  );
-}
-
-export const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
-  auth: { autoRefreshToken: false, persistSession: false },
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  realtime: { transport: ws },
 });
 
-export function supabaseFromToken(jwt) {
-  return createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-    global: { headers: { Authorization: `Bearer ${jwt}` } },
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
-}
+export const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
+  realtime: { transport: ws },
+  auth: { autoRefreshToken: false, persistSession: false },
+});
