@@ -14,7 +14,6 @@ Limbah elektronik tidak hilang — kami buatkan jalannya pulang. EcoLoop menghub
 | **API (Backend)** | https://ecoloop-api.up.railway.app/api/health |
 | **Repositori kode** | [github.com/poggymacello/ecoloop](https://github.com/poggymacello/ecoloop) |
 
-> Ganti URL di atas setelah deploy selesai.
 
 ### Akun demo siap pakai
 
